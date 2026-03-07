@@ -500,57 +500,21 @@ def main():
         # Initialize session state for folder selection
         if "selected_folder" not in st.session_state:
             st.session_state["selected_folder"] = ""
-        if "show_folder_browser" not in st.session_state:
-            st.session_state["show_folder_browser"] = False
-
         # Show currently selected folder
         if st.session_state["selected_folder"]:
             st.success(f"📁 {st.session_state['selected_folder']}")
 
         # Folder path input
         folder_input = st.text_input(
-            "Type folder path or use Browse",
+            "Enter submissions folder path",
             placeholder="/path/to/submissions",
             key="folder_manual_input",
         )
-        browse_clicked = st.button("📁 Browse Folder", key="browse_folder", width="stretch")
-
         # Manual input takes priority
         if folder_input:
             st.session_state["selected_folder"] = folder_input
 
         submissions_path = st.session_state["selected_folder"]
-
-        if browse_clicked:
-            st.session_state["show_folder_browser"] = not st.session_state["show_folder_browser"]
-            st.rerun()
-
-        if st.session_state["show_folder_browser"]:
-            st.markdown("---")
-            st.markdown("**🔍 Browse for folder:**")
-            browse_path = st.text_input(
-                "Enter parent directory to browse",
-                value=os.path.expanduser("~"),
-                key="browse_parent",
-            )
-            if os.path.isdir(browse_path):
-                try:
-                    subdirs = sorted(
-                        [d for d in os.listdir(browse_path)
-                         if os.path.isdir(os.path.join(browse_path, d)) and not d.startswith(".")]
-                    )
-                    if subdirs:
-                        selected = st.selectbox("Choose subfolder", subdirs, key="subfolder_select")
-                        full_path = os.path.join(browse_path, selected)
-                        st.caption(f"Full path: `{full_path}`")
-                        if st.button("✅ Use this folder", key="use_folder"):
-                            st.session_state["selected_folder"] = full_path
-                            st.session_state["show_folder_browser"] = False
-                            st.rerun()
-                    else:
-                        st.info("No subfolders found in this directory.")
-                except PermissionError:
-                    st.error("Permission denied. Try a different directory.")
 
         st.markdown("---")
         run_button = st.button("🚀 Run Evaluation", width="stretch")
