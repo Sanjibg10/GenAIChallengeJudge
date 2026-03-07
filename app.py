@@ -500,17 +500,41 @@ def main():
         # Initialize session state for folder selection
         if "selected_folder" not in st.session_state:
             st.session_state["selected_folder"] = ""
+
+        # Browse Folder button – opens native OS folder picker
+        if st.button("📁 Browse Folder", key="browse_folder", width="stretch"):
+            try:
+                import tkinter as tk
+                from tkinter import filedialog
+
+                root = tk.Tk()
+                root.withdraw()
+                # Bring the dialog to the front on Windows
+                root.wm_attributes("-topmost", 1)
+                folder = filedialog.askdirectory(
+                    master=root,
+                    title="Select Submissions Folder",
+                )
+                root.destroy()
+                if folder:
+                    st.session_state["selected_folder"] = folder
+                    st.rerun()
+            except Exception:
+                st.warning(
+                    "Native folder dialog not available on this system. "
+                    "Please type the path below instead."
+                )
+
         # Show currently selected folder
         if st.session_state["selected_folder"]:
             st.success(f"📁 {st.session_state['selected_folder']}")
 
-        # Folder path input
+        # Fallback: manual path entry
         folder_input = st.text_input(
-            "Enter submissions folder path",
+            "Or type folder path manually",
             placeholder="/path/to/submissions",
             key="folder_manual_input",
         )
-        # Manual input takes priority
         if folder_input:
             st.session_state["selected_folder"] = folder_input
 
