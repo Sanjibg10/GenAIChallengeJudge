@@ -6,14 +6,26 @@ against a "Target Image" using CLIP-based visual similarity and prompt analysis.
 
 import os
 import re
+import base64
+from io import BytesIO
 from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as components
 import numpy as np
 from PIL import Image
 import torch
 from transformers import CLIPProcessor, CLIPModel
 from sklearn.metrics.pairwise import cosine_similarity
+
+
+def pil_to_base64_thumbnail(image: Image.Image, size: tuple[int, int] = (80, 80)) -> str:
+    """Convert a PIL image to a base64-encoded thumbnail string for embedding in HTML."""
+    thumb = image.copy()
+    thumb.thumbnail(size, Image.Resampling.LANCZOS)
+    buffer = BytesIO()
+    thumb.save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
 # ──────────────────────────────────────────────
@@ -638,9 +650,10 @@ def main():
 
         st.markdown("")
 
-        # Build leaderboard table
+        # Build leaderboard table with thumbnails
         rank_emojis = {1: "🥇", 2: "🥈", 3: "🥉"}
-        table_rows = []
+
+        html_rows = ""
         for sub in submissions:
             rank = sub["rank"]
             emoji = rank_emojis.get(rank, f"#{rank}")
@@ -649,16 +662,50 @@ def main():
             prompt_style = sub["prompt_analysis"]["style"].replace("_", " ").title()
             final_pct = f"{sub['final_score']:.1%}"
 
-            table_rows.append(
-                f"| {rank_display} | **{sub['member']}** | {vis_pct} | {prompt_style} | {final_pct} | {sub['evaluation_note']} |"
-            )
+            # Generate thumbnail
+            if sub.get("image"):
+                b64 = pil_to_base64_thumbnail(sub["image"], size=(80, 80))
+                img_html = f'<img src="data:image/png;base64,{b64}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:2px solid #D65DB1;box-shadow:0 2px 6px rgba(132,94,194,0.2);" />'
+            else:
+                img_html = '<span style="color:#999;">N/A</span>'
 
-        table_md = (
-            "| Rank | Team Member | Visual Similarity | Prompt Style | Final Score | Evaluation Note |\n"
-            "|:----:|:------------|:-----------------:|:------------:|:-----------:|:----------------|\n"
-            + "\n".join(table_rows)
-        )
-        st.markdown(table_md, unsafe_allow_html=True)
+            html_rows += f"""
+            <tr>
+                <td style="text-align:center;font-size:20px;">{rank_display}</td>
+                <td><strong>{sub['member']}</strong></td>
+                <td style="text-align:center;">{img_html}</td>
+                <td style="text-align:center;">{vis_pct}</td>
+                <td style="text-align:center;">{prompt_style}</td>
+                <td style="text-align:center;font-weight:700;">{final_pct}</td>
+                <td style="font-size:13px;">{sub['evaluation_note']}</td>
+            </tr>"""
+
+        # Calculate dynamic height based on number of rows (header ~50px + ~100px per row + padding)
+        table_height = 60 + len(submissions) * 105
+
+        leaderboard_html = f"""
+        <html>
+        <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:transparent;">
+        <table style="width:100%;border-collapse:separate;border-spacing:0;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(132,94,194,0.15);">
+            <thead>
+                <tr style="background:linear-gradient(135deg,#FF6B6B,#D65DB1,#845EC2,#00C9A7);">
+                    <th style="color:#fff;padding:14px 12px;font-weight:700;text-align:center;">Rank</th>
+                    <th style="color:#fff;padding:14px 12px;font-weight:700;">Team Member</th>
+                    <th style="color:#fff;padding:14px 12px;font-weight:700;text-align:center;">Submission</th>
+                    <th style="color:#fff;padding:14px 12px;font-weight:700;text-align:center;">Visual Similarity</th>
+                    <th style="color:#fff;padding:14px 12px;font-weight:700;text-align:center;">Prompt Style</th>
+                    <th style="color:#fff;padding:14px 12px;font-weight:700;text-align:center;">Final Score</th>
+                    <th style="color:#fff;padding:14px 12px;font-weight:700;">Evaluation Note</th>
+                </tr>
+            </thead>
+            <tbody>
+                {html_rows}
+            </tbody>
+        </table>
+        </body>
+        </html>
+        """
+        components.html(leaderboard_html, height=table_height, scrolling=False)
 
         # ── Detailed Breakdown ──
         st.markdown("---")
