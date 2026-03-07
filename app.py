@@ -1,5 +1,5 @@
 """
-GenAI Image Challenge Judge
+Prompt Charade
 A local Python-based application that ranks team members' AI-generated images
 against a "Target Image" using CLIP-based visual similarity and prompt analysis.
 """
@@ -20,48 +20,74 @@ from sklearn.metrics.pairwise import cosine_similarity
 # Page Configuration & Custom CSS
 # ──────────────────────────────────────────────
 st.set_page_config(
-    page_title="GenAI Image Challenge Judge",
-    page_icon="🎨",
+    page_title="Prompt Charade",
+    page_icon="🎭",
     layout="wide",
 )
 
 CUSTOM_CSS = """
 <style>
-    /* Main background */
+    /* Main background - warm gradient */
     .stApp {
-        background-color: #F5F7FA;
+        background: linear-gradient(160deg, #FFF6F0 0%, #F0F0FF 40%, #E8FFF5 70%, #FFF8E8 100%);
     }
 
     /* Header styling */
     h1 {
-        color: #6C3FC5 !important;
+        background: linear-gradient(135deg, #FF6B6B, #845EC2, #00C9A7) !important;
+        -webkit-background-clip: text !important;
+        -webkit-text-fill-color: transparent !important;
+        background-clip: text !important;
         text-align: center;
-        font-weight: 800 !important;
+        font-weight: 900 !important;
+        font-size: 2.8rem !important;
+        letter-spacing: -0.5px;
     }
-    h2, h3 {
-        color: #2CB5A0 !important;
+    h2 {
+        color: #845EC2 !important;
+        font-weight: 700 !important;
+    }
+    h3 {
+        color: #00C9A7 !important;
+        font-weight: 600 !important;
     }
 
-    /* Sidebar */
+    /* Sidebar - vibrant gradient */
     [data-testid="stSidebar"] {
-        background-color: #FFFFFF;
-        border-right: 3px solid #6C3FC5;
+        background: linear-gradient(180deg, #FFEEF8 0%, #F0E6FF 50%, #E6FFF8 100%);
+        border-right: 3px solid #845EC2;
+    }
+    [data-testid="stSidebar"] h2 {
+        color: #D65DB1 !important;
+    }
+    [data-testid="stSidebar"] h3 {
+        color: #845EC2 !important;
     }
 
     /* File uploader */
     [data-testid="stFileUploader"] {
-        border: 2px dashed #6C3FC5;
-        border-radius: 12px;
-        padding: 12px;
+        border: 2px dashed #D65DB1;
+        border-radius: 16px;
+        padding: 14px;
+        background: rgba(255, 255, 255, 0.7);
     }
 
     /* Metric cards */
     [data-testid="stMetric"] {
-        background-color: #FFFFFF;
-        border: 1px solid #E0E0E0;
-        border-radius: 12px;
-        padding: 16px;
-        box-shadow: 0 2px 8px rgba(108, 63, 197, 0.08);
+        background: linear-gradient(135deg, #FFFFFF, #FFF6F0);
+        border: 2px solid transparent;
+        border-image: linear-gradient(135deg, #FF6B6B, #845EC2, #00C9A7) 1;
+        border-radius: 16px;
+        padding: 18px;
+        box-shadow: 0 4px 15px rgba(132, 94, 194, 0.12);
+    }
+    [data-testid="stMetric"] label {
+        color: #845EC2 !important;
+        font-weight: 600 !important;
+    }
+    [data-testid="stMetric"] [data-testid="stMetricValue"] {
+        color: #FF6B6B !important;
+        font-weight: 800 !important;
     }
 
     /* Table styling */
@@ -69,63 +95,91 @@ CUSTOM_CSS = """
         width: 100%;
         border-collapse: separate;
         border-spacing: 0;
-        border-radius: 12px;
+        border-radius: 16px;
         overflow: hidden;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        box-shadow: 0 4px 20px rgba(132, 94, 194, 0.15);
     }
     thead tr {
-        background: linear-gradient(135deg, #6C3FC5, #2CB5A0) !important;
+        background: linear-gradient(135deg, #FF6B6B, #D65DB1, #845EC2, #00C9A7) !important;
     }
     thead th {
         color: #FFFFFF !important;
-        padding: 14px 18px !important;
+        padding: 16px 18px !important;
         font-weight: 700 !important;
         font-size: 15px !important;
         text-align: left !important;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.15);
     }
     tbody tr {
         background-color: #FFFFFF;
+        transition: all 0.2s ease;
     }
     tbody tr:nth-child(even) {
-        background-color: #F9F7FD;
+        background: linear-gradient(90deg, #FFF6F0, #F9F0FF);
     }
     tbody tr:hover {
-        background-color: #EDE7F9;
+        background: linear-gradient(90deg, #FFE8E8, #F0E0FF, #E0FFF5);
+        transform: scale(1.005);
     }
     tbody td {
-        padding: 12px 18px !important;
+        padding: 14px 18px !important;
         font-size: 14px !important;
-        border-bottom: 1px solid #ECECEC !important;
+        border-bottom: 1px solid #F0E6FF !important;
     }
 
     /* Buttons */
     .stButton > button {
-        background: linear-gradient(135deg, #6C3FC5, #2CB5A0);
-        color: white;
+        background: linear-gradient(135deg, #FF6B6B, #D65DB1, #845EC2) !important;
+        color: white !important;
         border: none;
-        border-radius: 8px;
+        border-radius: 12px;
         font-weight: 700;
-        padding: 0.5rem 2rem;
+        padding: 0.6rem 2rem;
+        font-size: 16px;
+        box-shadow: 0 4px 15px rgba(214, 93, 177, 0.3);
+        transition: all 0.3s ease;
     }
     .stButton > button:hover {
-        background: linear-gradient(135deg, #5A32A8, #23A08D);
-        color: white;
+        background: linear-gradient(135deg, #FF5252, #C44DB1, #7040B0) !important;
+        color: white !important;
+        box-shadow: 0 6px 20px rgba(214, 93, 177, 0.4);
+        transform: translateY(-1px);
     }
 
     /* Info boxes */
     .info-box {
-        background: linear-gradient(135deg, #EDE7F9, #D4F5EF);
-        border-radius: 12px;
-        padding: 20px;
-        margin: 12px 0;
-        border-left: 4px solid #6C3FC5;
+        background: linear-gradient(135deg, #FFF0F5, #F0E6FF, #E6FFF5);
+        border-radius: 16px;
+        padding: 22px;
+        margin: 14px 0;
+        border-left: 5px solid;
+        border-image: linear-gradient(180deg, #FF6B6B, #845EC2, #00C9A7) 1;
+        box-shadow: 0 3px 12px rgba(132, 94, 194, 0.08);
+    }
+
+    /* Expander */
+    .streamlit-expanderHeader {
+        font-weight: 600 !important;
+        font-size: 16px !important;
     }
 
     /* Divider */
     hr {
         border: none;
-        height: 2px;
-        background: linear-gradient(90deg, #6C3FC5, #2CB5A0, transparent);
+        height: 3px;
+        background: linear-gradient(90deg, #FF6B6B, #D65DB1, #845EC2, #00C9A7, transparent);
+        border-radius: 2px;
+    }
+
+    /* Fun sparkle animation on header */
+    @keyframes shimmer {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+    h1 {
+        background-size: 200% auto !important;
+        animation: shimmer 4s ease infinite !important;
     }
 </style>
 """
@@ -407,11 +461,12 @@ def generate_evaluation_note(sub: dict) -> str:
 # ──────────────────────────────────────────────
 def main():
     # Header
-    st.markdown("# 🎨 GenAI Image Challenge Judge")
+    st.markdown("# 🎭 Prompt Charade")
     st.markdown(
         '<div class="info-box">'
-        "<b>Welcome!</b> Upload your target image and point to the submissions folder. "
-        "This tool uses a local CLIP model to evaluate visual similarity and analyzes prompts as a tie-breaker."
+        "<b>Welcome to Prompt Charade!</b> 🎉 Upload your target image and browse to the submissions folder. "
+        "We'll use a local CLIP model to evaluate visual similarity and analyze prompts as a tie-breaker. "
+        "Let the games begin! 🚀"
         "</div>",
         unsafe_allow_html=True,
     )
@@ -419,21 +474,71 @@ def main():
 
     # Sidebar inputs
     with st.sidebar:
-        st.markdown("## 🖼️ Inputs")
+        st.markdown("## 🎨 Inputs")
 
-        st.markdown("### Target Image")
+        st.markdown("### 🖼️ Target Image")
         target_file = st.file_uploader(
             "Upload the reference image",
             type=["png", "jpg", "jpeg", "webp", "bmp"],
             help="This is the image all submissions will be compared against.",
         )
 
-        st.markdown("### Submissions Folder")
-        submissions_path = st.text_input(
-            "Enter the full path to the submissions directory",
+        st.markdown("### 📂 Submissions Folder")
+
+        # Initialize session state for folder selection
+        if "selected_folder" not in st.session_state:
+            st.session_state["selected_folder"] = ""
+        if "show_folder_browser" not in st.session_state:
+            st.session_state["show_folder_browser"] = False
+
+        # Show currently selected folder
+        if st.session_state["selected_folder"]:
+            st.success(f"📁 {st.session_state['selected_folder']}")
+
+        # Folder path input
+        folder_input = st.text_input(
+            "Type folder path or use Browse",
             placeholder="/path/to/submissions",
-            help="Each subfolder should be named after a team member and contain an image and optional prompt.txt.",
+            key="folder_manual_input",
         )
+        browse_clicked = st.button("📁 Browse Folder", key="browse_folder", width="stretch")
+
+        # Manual input takes priority
+        if folder_input:
+            st.session_state["selected_folder"] = folder_input
+
+        submissions_path = st.session_state["selected_folder"]
+
+        if browse_clicked:
+            st.session_state["show_folder_browser"] = not st.session_state["show_folder_browser"]
+            st.rerun()
+
+        if st.session_state["show_folder_browser"]:
+            st.markdown("---")
+            st.markdown("**🔍 Browse for folder:**")
+            browse_path = st.text_input(
+                "Enter parent directory to browse",
+                value=os.path.expanduser("~"),
+                key="browse_parent",
+            )
+            if os.path.isdir(browse_path):
+                try:
+                    subdirs = sorted(
+                        [d for d in os.listdir(browse_path)
+                         if os.path.isdir(os.path.join(browse_path, d)) and not d.startswith(".")]
+                    )
+                    if subdirs:
+                        selected = st.selectbox("Choose subfolder", subdirs, key="subfolder_select")
+                        full_path = os.path.join(browse_path, selected)
+                        st.caption(f"Full path: `{full_path}`")
+                        if st.button("✅ Use this folder", key="use_folder"):
+                            st.session_state["selected_folder"] = full_path
+                            st.session_state["show_folder_browser"] = False
+                            st.rerun()
+                    else:
+                        st.info("No subfolders found in this directory.")
+                except PermissionError:
+                    st.error("Permission denied. Try a different directory.")
 
         st.markdown("---")
         run_button = st.button("🚀 Run Evaluation", width="stretch")
@@ -456,7 +561,7 @@ def main():
                 else:
                     st.warning("No valid submissions found. Check the folder structure.")
     else:
-        st.info("👈 Upload a **Target Image** in the sidebar to get started.")
+        st.info("👈 Upload a **Target Image** and select a **Submissions Folder** in the sidebar to get started!")
 
     # Run evaluation
     if run_button:
@@ -589,7 +694,7 @@ def main():
         st.markdown("---")
         st.markdown(
             '<p style="text-align:center; color:#999; font-size:13px;">'
-            "GenAI Image Challenge Judge | Powered by CLIP (local) | No paid APIs used"
+            "🎭 Prompt Charade | Powered by CLIP (local) | No paid APIs used | Let the fun continue! 🎉"
             "</p>",
             unsafe_allow_html=True,
         )
