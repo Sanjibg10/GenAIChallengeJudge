@@ -197,6 +197,139 @@ CUSTOM_CSS = """
 """
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
+# ──────────────────────────────────────────────
+# Animated Loading / Splash Screen
+# ──────────────────────────────────────────────
+LOADING_SCREEN = """
+<style>
+    /* Loading overlay – covers the page until Streamlit renders content */
+    #splash-overlay {
+        position: fixed;
+        top: 0; left: 0;
+        width: 100vw; height: 100vh;
+        z-index: 99999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #FFF6F0 0%, #F0E6FF 40%, #E6FFF8 70%, #FFF8E8 100%);
+        animation: fadeOut 0.6s ease 2.5s forwards;
+        pointer-events: none;
+    }
+
+    /* Bouncing emoji characters */
+    .splash-emojis {
+        font-size: 60px;
+        display: flex;
+        gap: 18px;
+        margin-bottom: 30px;
+    }
+    .splash-emojis span {
+        display: inline-block;
+        animation: bounce 1.4s ease infinite;
+    }
+    .splash-emojis span:nth-child(1) { animation-delay: 0s; }
+    .splash-emojis span:nth-child(2) { animation-delay: 0.15s; }
+    .splash-emojis span:nth-child(3) { animation-delay: 0.3s; }
+    .splash-emojis span:nth-child(4) { animation-delay: 0.45s; }
+    .splash-emojis span:nth-child(5) { animation-delay: 0.6s; }
+
+    @keyframes bounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-25px); }
+    }
+
+    /* App title on splash */
+    .splash-title {
+        font-size: 42px;
+        font-weight: 900;
+        background: linear-gradient(135deg, #FF6B6B, #D65DB1, #845EC2, #00C9A7);
+        background-size: 200% auto;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        animation: shimmer 3s ease infinite;
+        margin-bottom: 16px;
+    }
+
+    /* Fun rotating messages */
+    .splash-msg {
+        font-size: 20px;
+        font-weight: 600;
+        color: #845EC2;
+        animation: msgCycle 6s ease infinite;
+    }
+    @keyframes msgCycle {
+        0%, 30%   { content: ""; opacity: 1; }
+        33%, 63%  { opacity: 0; }
+        66%, 96%  { opacity: 1; }
+        100%      { opacity: 1; }
+    }
+
+    /* Colorful progress dots */
+    .splash-dots {
+        display: flex;
+        gap: 10px;
+        margin-top: 24px;
+    }
+    .splash-dots span {
+        width: 14px; height: 14px;
+        border-radius: 50%;
+        animation: dotPulse 1.4s ease infinite;
+    }
+    .splash-dots span:nth-child(1) { background: #FF6B6B; animation-delay: 0s; }
+    .splash-dots span:nth-child(2) { background: #D65DB1; animation-delay: 0.2s; }
+    .splash-dots span:nth-child(3) { background: #845EC2; animation-delay: 0.4s; }
+    .splash-dots span:nth-child(4) { background: #00C9A7; animation-delay: 0.6s; }
+    .splash-dots span:nth-child(5) { background: #FF6B6B; animation-delay: 0.8s; }
+
+    @keyframes dotPulse {
+        0%, 100% { transform: scale(1); opacity: 0.5; }
+        50% { transform: scale(1.6); opacity: 1; }
+    }
+
+    /* Fade out the overlay */
+    @keyframes fadeOut {
+        to { opacity: 0; visibility: hidden; }
+    }
+</style>
+
+<div id="splash-overlay">
+    <div class="splash-emojis">
+        <span>🎭</span><span>🎨</span><span>🖼️</span><span>🏆</span><span>🚀</span>
+    </div>
+    <div class="splash-title">Prompt Charade</div>
+    <div class="splash-msg" id="splash-msg-text">... warming up the magic ...</div>
+    <div class="splash-dots">
+        <span></span><span></span><span></span><span></span><span></span>
+    </div>
+</div>
+
+<script>
+    // Cycle through fun messages
+    const msgs = [
+        "... warming up the magic ...",
+        "... getting the pixels ready ...",
+        "... summoning the AI judges ...",
+        "... polishing the leaderboard ...",
+        "... almost showtime ...",
+    ];
+    let idx = 0;
+    const el = document.getElementById("splash-msg-text");
+    if (el) {
+        setInterval(() => {
+            idx = (idx + 1) % msgs.length;
+            el.style.opacity = 0;
+            setTimeout(() => {
+                el.textContent = msgs[idx];
+                el.style.opacity = 1;
+            }, 300);
+        }, 2000);
+    }
+</script>
+"""
+st.markdown(LOADING_SCREEN, unsafe_allow_html=True)
+
 
 # ──────────────────────────────────────────────
 # CLIP Model Loading (cached)
