@@ -368,6 +368,124 @@ def compute_similarity(emb_a: np.ndarray, emb_b: np.ndarray) -> float:
     return float(cosine_similarity(emb_a, emb_b)[0][0])
 
 
+def get_text_embedding(model, processor, text: str) -> np.ndarray:
+    """Compute the CLIP text embedding for a given text string."""
+    inputs = processor(text=[text], return_tensors="pt", padding=True, truncation=True)
+    with torch.no_grad():
+        output = model.get_text_features(**inputs)
+    if isinstance(output, torch.Tensor):
+        embedding = output
+    else:
+        embedding = output[0] if not isinstance(output, torch.Tensor) else output
+    embedding = embedding / embedding.norm(p=2, dim=-1, keepdim=True)
+    return embedding.cpu().numpy()
+
+
+# Visual aspect categories for CLIP-based element comparison
+VISUAL_ASPECTS = {
+    "Color Tone": [
+        "warm colors like red, orange, and yellow tones",
+        "cool colors like blue, green, and purple tones",
+        "neutral or muted earth tones",
+        "vibrant and highly saturated colors",
+    ],
+    "Brightness": [
+        "bright and well-lit scene",
+        "dark and moody low-light scene",
+        "soft diffused lighting",
+    ],
+    "Subject": [
+        "a person or human portrait",
+        "an animal or creature",
+        "a landscape or natural scenery",
+        "an everyday object or still life",
+        "an abstract or geometric pattern",
+        "architecture or buildings",
+    ],
+    "Setting": [
+        "outdoor natural environment with trees or sky",
+        "indoor room or interior space",
+        "urban cityscape with buildings and streets",
+        "fantasy or surreal dreamlike setting",
+        "plain or simple background",
+    ],
+    "Style": [
+        "photorealistic photograph",
+        "cartoon or illustration",
+        "oil painting or watercolor artwork",
+        "digital art or 3D render",
+        "minimalist or flat design",
+    ],
+    "Composition": [
+        "close-up detailed view",
+        "wide panoramic view",
+        "centered symmetrical layout",
+        "dynamic angled or action composition",
+    ],
+    "Mood": [
+        "cheerful and upbeat atmosphere",
+        "calm and peaceful serene atmosphere",
+        "dramatic and intense atmosphere",
+        "mysterious and dark atmosphere",
+    ],
+    "Detail Level": [
+        "highly detailed with intricate textures",
+        "smooth and clean with minimal details",
+    ],
+}
+
+
+def compute_aspect_text_embeddings(model, processor) -> dict:
+    """Pre-compute CLIP text embeddings for all visual aspect descriptions."""
+    aspect_embeddings = {}
+    for aspect_name, descriptions in VISUAL_ASPECTS.items():
+        text_embs = []
+        for desc in descriptions:
+            t_emb = get_text_embedding(model, processor, f"a photo with {desc}")
+            text_embs.append(t_emb)
+        aspect_embeddings[aspect_name] = {
+            "descriptions": descriptions,
+            "embeddings": np.vstack(text_embs),
+        }
+    return aspect_embeddings
+
+
+def analyze_visual_elements(
+    target_emb: np.ndarray,
+    sub_emb: np.ndarray,
+    aspect_embeddings: dict,
+) -> dict:
+    """
+    Compare target and submission images across visual aspects using CLIP.
+    Returns a dict with 'matching' and 'non_matching' lists of findings.
+    """
+    matching = []
+    non_matching = []
+
+    for aspect_name, data in aspect_embeddings.items():
+        descriptions = data["descriptions"]
+        text_embs = data["embeddings"]
+
+        target_sims = cosine_similarity(target_emb, text_embs)[0]
+        sub_sims = cosine_similarity(sub_emb, text_embs)[0]
+
+        target_best_idx = int(np.argmax(target_sims))
+        sub_best_idx = int(np.argmax(sub_sims))
+
+        target_desc = descriptions[target_best_idx]
+        sub_desc = descriptions[sub_best_idx]
+
+        if target_best_idx == sub_best_idx:
+            matching.append(f"**{aspect_name}** \u2014 Both share _{target_desc}_")
+        else:
+            non_matching.append(
+                f"**{aspect_name}** \u2014 Target has _{target_desc}_, "
+                f"submission has _{sub_desc}_"
+            )
+
+    return {"matching": matching, "non_matching": non_matching}
+
+
 # ──────────────────────────────────────────────
 # Directory Crawler
 # ──────────────────────────────────────────────
@@ -721,7 +839,11 @@ def main():
         # Compute target embedding
         progress_bar = st.progress(0, text="Computing target image embedding...")
         target_emb = get_image_embedding(model, processor, target_image)
-        progress_bar.progress(10, text="Target embedding computed.")
+        progress_bar.progress(5, text="Target embedding computed. Preparing visual analysis...")
+
+        # Pre-compute text embeddings for visual element analysis
+        aspect_embs = compute_aspect_text_embeddings(model, processor)
+        progress_bar.progress(10, text="Visual analysis ready. Evaluating submissions...")
 
         # Process each submission
         total = len(submissions)
@@ -736,13 +858,23 @@ def main():
                 similarity = compute_similarity(target_emb, sub_emb)
                 sub["visual_similarity"] = round(similarity, 4)
                 sub["image"] = sub_image
+                sub["embedding"] = sub_emb
             except Exception as e:
                 sub["visual_similarity"] = 0.0
                 sub["image"] = None
+                sub["embedding"] = None
                 sub["error"] = str(e)
 
             # Analyze prompt
             sub["prompt_analysis"] = analyze_prompt(sub["prompt_text"])
+
+            # Analyze visual elements (key findings)
+            if sub.get("embedding") is not None:
+                sub["key_findings"] = analyze_visual_elements(
+                    target_emb, sub["embedding"], aspect_embs
+                )
+            else:
+                sub["key_findings"] = {"matching": [], "non_matching": []}
 
         # Compute final scores and rank
         progress_bar.progress(95, text="Computing final rankings...")
@@ -780,7 +912,20 @@ def main():
             emoji = rank_emojis.get(rank, f"#{rank}")
             rank_display = f"{emoji}" if rank <= 3 else f"#{rank}"
             vis_pct = f"{sub['visual_similarity']:.1%}"
-            prompt_style = sub["prompt_analysis"]["style"].replace("_", " ").title()
+            nat_score = sub["prompt_analysis"]["naturalness_score"]
+            prompt_score_pct = f"{nat_score:.0%}"
+            style_label = sub["prompt_analysis"]["style"].replace("_", " ").title()
+            if style_label == "Natural":
+                badge_bg = "#00C9A7"
+            elif style_label == "Ai Optimized":
+                badge_bg = "#FF6B6B"
+            else:
+                badge_bg = "#FFB347"
+            prompt_cell = (
+                f'{prompt_score_pct}<br>'
+                f'<span style="font-size:10px;background:{badge_bg};color:#fff;'
+                f'padding:2px 8px;border-radius:10px;">{style_label}</span>'
+            )
             final_pct = f"{sub['final_score']:.1%}"
 
             # Generate thumbnail
@@ -796,7 +941,7 @@ def main():
                 <td><strong>{sub['member']}</strong></td>
                 <td style="text-align:center;">{img_html}</td>
                 <td style="text-align:center;">{vis_pct}</td>
-                <td style="text-align:center;">{prompt_style}</td>
+                <td style="text-align:center;">{prompt_cell}</td>
                 <td style="text-align:center;font-weight:700;">{final_pct}</td>
                 <td style="font-size:13px;">{sub['evaluation_note']}</td>
             </tr>"""
@@ -814,7 +959,7 @@ def main():
                     <th style="color:#fff;padding:14px 12px;font-weight:700;">Team Member</th>
                     <th style="color:#fff;padding:14px 12px;font-weight:700;text-align:center;">Submission</th>
                     <th style="color:#fff;padding:14px 12px;font-weight:700;text-align:center;">Visual Similarity</th>
-                    <th style="color:#fff;padding:14px 12px;font-weight:700;text-align:center;">Prompt Style</th>
+                    <th style="color:#fff;padding:14px 12px;font-weight:700;text-align:center;">Prompt Score</th>
                     <th style="color:#fff;padding:14px 12px;font-weight:700;text-align:center;">Final Score</th>
                     <th style="color:#fff;padding:14px 12px;font-weight:700;">Evaluation Note</th>
                 </tr>
@@ -857,6 +1002,28 @@ def main():
                         st.code(sub["prompt_text"], language=None)
                     else:
                         st.info("No prompt.txt provided for this submission.")
+
+                # Key Findings — Target vs. Submission
+                if sub.get("key_findings"):
+                    findings = sub["key_findings"]
+                    st.markdown("---")
+                    st.markdown("**🔍 Key Findings — Target vs. Submission:**")
+
+                    kf_col1, kf_col2 = st.columns(2)
+                    with kf_col1:
+                        if findings["matching"]:
+                            st.markdown("**✅ Matching Elements:**")
+                            for finding in findings["matching"]:
+                                st.markdown(f"- {finding}")
+                        else:
+                            st.info("No clearly matching visual elements detected.")
+                    with kf_col2:
+                        if findings["non_matching"]:
+                            st.markdown("**❌ Non-Matching Elements:**")
+                            for finding in findings["non_matching"]:
+                                st.markdown(f"- {finding}")
+                        else:
+                            st.info("No clearly differing visual elements detected.")
 
         # Footer
         st.markdown("---")
