@@ -369,14 +369,26 @@ def compute_similarity(emb_a: np.ndarray, emb_b: np.ndarray) -> float:
 
 
 def get_text_embedding(model, processor, text: str) -> np.ndarray:
-    """Compute the CLIP text embedding for a given text string."""
+    """Compute the CLIP text embedding for a given text string. Returns shape (1, D)."""
     inputs = processor(text=[text], return_tensors="pt", padding=True, truncation=True)
     with torch.no_grad():
-        output = model.get_text_features(**inputs)
-    if isinstance(output, torch.Tensor):
+        output = model.get_text_features(
+            input_ids=inputs["input_ids"],
+            attention_mask=inputs["attention_mask"],
+        )
+    # Handle BaseModelOutputWithPooling vs raw tensor
+    if hasattr(output, "pooler_output"):
+        embedding = output.pooler_output  # shape (1, 512)
+    elif isinstance(output, torch.Tensor):
         embedding = output
     else:
-        embedding = output[0] if not isinstance(output, torch.Tensor) else output
+        embedding = output.pooler_output if hasattr(output, "pooler_output") else output[0]
+    # Ensure 2D shape (1, D)
+    if embedding.dim() == 1:
+        embedding = embedding.unsqueeze(0)
+    elif embedding.dim() == 3:
+        # last_hidden_state shape (1, seq_len, D) – take CLS token
+        embedding = embedding[:, 0, :]
     embedding = embedding / embedding.norm(p=2, dim=-1, keepdim=True)
     return embedding.cpu().numpy()
 
