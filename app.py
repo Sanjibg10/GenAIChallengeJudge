@@ -907,11 +907,11 @@ def main():
         with col_a:
             st.metric("Total Submissions", len(submissions))
         with col_b:
-            avg_sim = np.mean([s["visual_similarity"] for s in submissions])
-            st.metric("Avg Visual Similarity", f"{avg_sim:.1%}")
+            top_vis = submissions[0]["visual_similarity"] if submissions else 0.0
+            st.metric("Top Performer Visual Similarity", f"{top_vis:.1%}")
         with col_c:
             top_member = submissions[0]["member"] if submissions else "N/A"
-            st.metric("Top Performer", top_member)
+            st.metric("Top Performer Overall", top_member)
 
         st.markdown("")
 
