@@ -907,8 +907,12 @@ def main():
         with col_a:
             st.metric("Total Submissions", len(submissions))
         with col_b:
-            top_vis = submissions[0]["visual_similarity"] if submissions else 0.0
-            st.metric("Top Performer Visual Similarity", f"{top_vis:.1%}")
+            if submissions:
+                best_vis_sub = max(submissions, key=lambda s: s["visual_similarity"])
+                top_vis_name = best_vis_sub["member"]
+            else:
+                top_vis_name = "N/A"
+            st.metric("Top Performer Visual Similarity", top_vis_name)
         with col_c:
             top_member = submissions[0]["member"] if submissions else "N/A"
             st.metric("Top Performer Overall", top_member)
